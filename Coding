@@ -1,4 +1,163 @@
-axxaxaxaaxax
-wenjun
-hhshihziz
-axaxaxa
+; FastBite Food Ordering System in Assembly Language (EMU8086 syntax)
+
+.model small
+.stack 100h
+data
+    username db "admin$"
+    password db "1234$"
+    input_user db 6 dup('$')
+    input_pass db 6 dup('$')
+
+    menu db 0
+    item_choice db ?
+    quantity db ?
+    total dw 0
+    tax dw 0
+    final_total dw 0
+
+    item_price dw 500, 600, 450 ; Chicken, Beef, Veggie (in cents)
+    item_names label byte
+        db "Chicken Burger$"
+        db "Beef Burger$"
+        db "Veggie Burger$"
+
+.code
+start:
+    mov ax, @data
+    mov ds, ax
+
+    ; Display welcome message
+    mov ah, 09h
+    lea dx, welcome_msg
+    int 21h
+
+    call login
+    call main_menu
+
+    ; Exit program
+    mov ah, 4ch
+    int 21h
+
+; ----------- LOGIN MODULE -----------
+login proc
+    mov ah, 09h
+    lea dx, login_msg
+    int 21h
+
+    ; Get username
+    mov ah, 0Ah
+    lea dx, input_buffer
+    int 21h
+
+    ; Compare username (not implemented for simplicity)
+    ; Assume valid input for prototype
+
+    ; Get password
+    mov ah, 09h
+    lea dx, pass_prompt
+    int 21h
+
+    mov ah, 0Ah
+    lea dx, input_buffer
+    int 21h
+
+    ; Assume always successful login
+    mov ah, 09h
+    lea dx, success_msg
+    int 21h
+
+    ret
+login endp
+
+; ----------- MAIN MENU -----------
+main_menu proc
+    mov ah, 09h
+    lea dx, main_menu_msg
+    int 21h
+
+    ; Read choice
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov bl, al
+
+    cmp bl, 1
+    je burgers_menu
+    cmp bl, 4
+    je checkout
+    jmp main_menu
+
+    ret
+main_menu endp
+
+; ----------- BURGERS MENU -----------
+burgers_menu proc
+    mov ah, 09h
+    lea dx, burgers_msg
+    int 21h
+
+    ; Get item choice
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov bl, al
+    dec bl ; index 0-2
+
+    ; Get quantity
+    mov ah, 09h
+    lea dx, qty_prompt
+    int 21h
+
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov bh, al
+
+    ; Calculate total = item_price[bl] * quantity
+    mov si, bx
+    mov ax, item_price[bx]
+    mov cl, bh
+    mul cl
+    add total, ax
+
+    jmp main_menu
+burgers_menu endp
+
+; ----------- CHECKOUT -----------
+checkout proc
+    ; Calculate tax and final total
+    mov ax, total
+    mov bx, 6
+    mul bx
+    mov bx, 100
+    div bx
+    mov tax, ax
+
+    mov ax, total
+    add ax, tax
+    mov final_total, ax
+
+    ; Display receipt (simplified)
+    mov ah, 09h
+    lea dx, receipt_msg
+    int 21h
+
+    ; Display final_total (not full conversion to ASCII for simplicity)
+    ; Normally you would write a number to string converter here
+
+    ret
+checkout endp
+
+; ----------- STRINGS -----------
+welcome_msg db "--- Welcome to FastBite Food Ordering System ---$"
+login_msg db 13,10,"Login: Username: $"
+pass_prompt db 13,10,"Password: $"
+success_msg db 13,10,"Login successful!$"
+main_menu_msg db 13,10,"MAIN MENU",13,10,"1. Burgers",13,10,"2. Drinks",13,10,"3. Desserts",13,10,"4. Checkout",13,10,"Enter choice: $"
+burgers_msg db 13,10,"BURGERS MENU",13,10,"1. Chicken Burger - RM5.00",13,10,"2. Beef Burger - RM6.00",13,10,"3. Veggie Burger - RM4.50",13,10,"Select item (1-3): $"
+qty_prompt db 13,10,"Quantity: $"
+receipt_msg db 13,10,"--- RECEIPT ---$"
+
+input_buffer db 10,?,10 dup(?)
+end start
+
