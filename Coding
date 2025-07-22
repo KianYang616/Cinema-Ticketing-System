@@ -1,163 +1,130 @@
-; FastBite Food Ordering System in Assembly Language (EMU8086 syntax)
+.MODEL SMALL
+.STACK 100H
 
-.model small
-.stack 100h
-data
-    username db "admin$"
-    password db "1234$"
-    input_user db 6 dup('$')
-    input_pass db 6 dup('$')
+.DATA
+username db "admin", '$'
+password db "1234", '$'
 
-    menu db 0
-    item_choice db ?
-    quantity db ?
-    total dw 0
-    tax dw 0
-    final_total dw 0
+msg_welcome db "Welcome to Cinema Booking System$", 13,10,'$'
+msg_enter_user db 13,10, "Enter username: $"
+msg_enter_pass db 13,10, "Enter password: $"
+msg_login_fail db 13,10, "Login failed!$", 13,10,'$'
+msg_login_success db 13,10, "Login successful!", 13,10,'$'
 
-    item_price dw 500, 600, 450 ; Chicken, Beef, Veggie (in cents)
-    item_names label byte
-        db "Chicken Burger$"
-        db "Beef Burger$"
-        db "Veggie Burger$"
+msg_menu db 13,10,"1. Book Ticket",13,10,"2. View Summary",13,10,"3. Exit",13,10,"Enter choice: $"
+msg_goodbye db 13,10, "Thank you! Goodbye.$"
 
-.code
-start:
-    mov ax, @data
-    mov ds, ax
+msg_booking db 13,10,"Booking ticket...$",13,10,'$'
+msg_summary db 13,10,"Summary: Total tickets sold=$"
 
-    ; Display welcome message
-    mov ah, 09h
-    lea dx, welcome_msg
-    int 21h
+; Counters
+total_tickets db 0
 
-    call login
-    call main_menu
+.CODE
+MAIN PROC
+    MOV AX, @DATA
+    MOV DS, AX
 
-    ; Exit program
-    mov ah, 4ch
-    int 21h
+    CALL login
+main_menu:
+    CALL menu
+    CMP AL, '1'
+    JE book_ticket
+    CMP AL, '2'
+    JE view_summary
+    CMP AL, '3'
+    JE exit_program
+    JMP main_menu
 
-; ----------- LOGIN MODULE -----------
-login proc
-    mov ah, 09h
-    lea dx, login_msg
-    int 21h
+book_ticket:
+    CALL data_entry
+    CALL calculate_total
+    JMP main_menu
 
-    ; Get username
-    mov ah, 0Ah
-    lea dx, input_buffer
-    int 21h
+view_summary:
+    CALL print_summary
+    JMP main_menu
 
-    ; Compare username (not implemented for simplicity)
-    ; Assume valid input for prototype
+exit_program:
+    CALL logout
+    MOV AH,4CH
+    INT 21H
+MAIN ENDP
 
-    ; Get password
-    mov ah, 09h
-    lea dx, pass_prompt
-    int 21h
+;----------------------------------------------------------
+login PROC
+    MOV AH,09
+    LEA DX,msg_welcome
+    INT 21H
 
-    mov ah, 0Ah
-    lea dx, input_buffer
-    int 21h
+    ; Prompt for username
+    MOV AH,09
+    LEA DX,msg_enter_user
+    INT 21H
 
-    ; Assume always successful login
-    mov ah, 09h
-    lea dx, success_msg
-    int 21h
+    ; (For simplicity, skip real input: assume always correct)
+    ; Prompt for password
+    MOV AH,09
+    LEA DX,msg_enter_pass
+    INT 21H
 
-    ret
-login endp
+    ; Show success message
+    MOV AH,09
+    LEA DX,msg_login_success
+    INT 21H
+    RET
+login ENDP
 
-; ----------- MAIN MENU -----------
-main_menu proc
-    mov ah, 09h
-    lea dx, main_menu_msg
-    int 21h
+;----------------------------------------------------------
+menu PROC
+    MOV AH,09
+    LEA DX,msg_menu
+    INT 21H
 
-    ; Read choice
-    mov ah, 01h
-    int 21h
-    sub al, '0'
-    mov bl, al
+    ; Read user choice
+    MOV AH,01
+    INT 21H
+    RET
+menu ENDP
 
-    cmp bl, 1
-    je burgers_menu
-    cmp bl, 4
-    je checkout
-    jmp main_menu
+;----------------------------------------------------------
+data_entry PROC
+    MOV AH,09
+    LEA DX,msg_booking
+    INT 21H
 
-    ret
-main_menu endp
+    ; For demo, just increment tickets
+    INC total_tickets
+    RET
+data_entry ENDP
 
-; ----------- BURGERS MENU -----------
-burgers_menu proc
-    mov ah, 09h
-    lea dx, burgers_msg
-    int 21h
+;----------------------------------------------------------
+calculate_total PROC
+    ; For demo: do nothing
+    RET
+calculate_total ENDP
 
-    ; Get item choice
-    mov ah, 01h
-    int 21h
-    sub al, '0'
-    mov bl, al
-    dec bl ; index 0-2
+;----------------------------------------------------------
+print_summary PROC
+    MOV AH,09
+    LEA DX,msg_summary
+    INT 21H
 
-    ; Get quantity
-    mov ah, 09h
-    lea dx, qty_prompt
-    int 21h
+    MOV AL, total_tickets
+    ADD AL, 30H ; convert to ASCII
+    MOV DL, AL
+    MOV AH,02
+    INT 21H
 
-    mov ah, 01h
-    int 21h
-    sub al, '0'
-    mov bh, al
+    RET
+print_summary ENDP
 
-    ; Calculate total = item_price[bl] * quantity
-    mov si, bx
-    mov ax, item_price[bx]
-    mov cl, bh
-    mul cl
-    add total, ax
+;----------------------------------------------------------
+logout PROC
+    MOV AH,09
+    LEA DX,msg_goodbye
+    INT 21H
+    RET
+logout ENDP
 
-    jmp main_menu
-burgers_menu endp
-
-; ----------- CHECKOUT -----------
-checkout proc
-    ; Calculate tax and final total
-    mov ax, total
-    mov bx, 6
-    mul bx
-    mov bx, 100
-    div bx
-    mov tax, ax
-
-    mov ax, total
-    add ax, tax
-    mov final_total, ax
-
-    ; Display receipt (simplified)
-    mov ah, 09h
-    lea dx, receipt_msg
-    int 21h
-
-    ; Display final_total (not full conversion to ASCII for simplicity)
-    ; Normally you would write a number to string converter here
-
-    ret
-checkout endp
-
-; ----------- STRINGS -----------
-welcome_msg db "--- Welcome to FastBite Food Ordering System ---$"
-login_msg db 13,10,"Login: Username: $"
-pass_prompt db 13,10,"Password: $"
-success_msg db 13,10,"Login successful!$"
-main_menu_msg db 13,10,"MAIN MENU",13,10,"1. Burgers",13,10,"2. Drinks",13,10,"3. Desserts",13,10,"4. Checkout",13,10,"Enter choice: $"
-burgers_msg db 13,10,"BURGERS MENU",13,10,"1. Chicken Burger - RM5.00",13,10,"2. Beef Burger - RM6.00",13,10,"3. Veggie Burger - RM4.50",13,10,"Select item (1-3): $"
-qty_prompt db 13,10,"Quantity: $"
-receipt_msg db 13,10,"--- RECEIPT ---$"
-
-input_buffer db 10,?,10 dup(?)
-end start
-
+END MAIN
