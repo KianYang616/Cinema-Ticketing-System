@@ -1,477 +1,646 @@
-.model small
-.stack 100h
+.MODEL SMALL
+.STACK 100H
 
-.data
-    ; System Messages
-    welcome_msg db 'Welcome to Food Ordering System', 0Dh, 0Ah, '$'
-    login_prompt db 'Enter username: $'
-    pass_prompt db 0Dh, 0Ah, 'Enter password: $'
-    login_success db 0Dh, 0Ah, 'Login successful!$'
-    login_fail db 0Dh, 0Ah, 'Invalid credentials. Try again.$'
-    login_lockout db 0Dh, 0Ah, 'Too many failed attempts. System exiting.$'
+.DATA
+    ; Login credentials
+    username DB 'admin$'
+    password DB '1234$'
+    input_user DB 20, ?, 20 DUP('$')
+    input_pass DB 20, ?, 20 DUP('$')
     
-    ; Credentials
-    valid_user db 'admin$'
-    valid_pass db '1234$'
+    ; Menu items and prices
+    menu_header DB 13, 10, '======= FOOD ORDERING SYSTEM MENU =======', 13, 10
+               DB '1. Burger    - RM15.50', 13, 10
+               DB '2. Pizza     - RM25.00', 13, 10
+               DB '3. Pasta     - RM18.50', 13, 10
+               DB '4. Sandwich  - RM12.00', 13, 10
+               DB '5. Fries     - RM8.50', 13, 10
+               DB '6. Drink     - RM5.00', 13, 10
+               DB '=========================================', 13, 10, '$'
     
-    ; Menu System
-    main_menu db 0Dh, 0Ah, 'MAIN MENU', 0Dh, 0Ah, 0Dh, 0Ah
-              db '1. View Food Menu', 0Dh, 0Ah
-              db '2. View Cart', 0Dh, 0Ah
-              db '3. Checkout', 0Dh, 0Ah
-              db '4. Exit System', 0Dh, 0Ah, 0Dh, 0Ah
-              db 'Enter choice (1-4): $'
+    prices DW 1550, 2500, 1850, 1200, 850, 500  ; Prices in cents
+    item_names DB 'Burger   $'
+              DB 'Pizza    $'
+              DB 'Pasta    $'
+              DB 'Sandwich $'
+              DB 'Fries    $'
+              DB 'Drink    $'
     
-    invalid_choice db 0Dh, 0Ah, 'Invalid selection. Please enter 1-4.$'
+    ; Order storage
+    quantities DB 6 DUP(0)
+    order_subtotal DW 0
+    tax_amount DW 0
+    final_total DW 0
     
-    ; Food Items
-    food_menu db 0Dh, 0Ah, 'FOOD MENU', 0Dh, 0Ah, 0Dh, 0Ah
-              db '1. Burger - 5', 0Dh, 0Ah
-              db '2. Pizza - 8', 0Dh, 0Ah
-              db '3. Salad - 6', 0Dh, 0Ah
-              db '4. Fries - 3', 0Dh, 0Ah
-              db '5. Drink - 2', 0Dh, 0Ah, 0Dh, 0Ah
-              db 'Enter item number (1-5) or 0 to return: $'
+    ; System messages
+    welcome_msg DB 13, 10, '************************************', 13, 10
+               DB '*   WELCOME TO FOOD ORDER SYSTEM   *', 13, 10
+               DB '************************************', 13, 10, '$'
     
-    ; Cart Messages
-    cart_header db 0Dh, 0Ah, 'YOUR CART', 0Dh, 0Ah, 0Dh, 0Ah, '$'
-    empty_cart db 'Your cart is empty.$'
-    item_added db 0Dh, 0Ah, 'Item added to cart.$'
-    item_quantity_msg db ' - Quantity: $'
+    login_header DB 13, 10, '========== LOGIN REQUIRED ==========', 13, 10, '$'
+    user_prompt DB 'Enter Username: $'
+    pass_prompt DB 'Enter Password: $'
+    login_success DB 13, 10, 'Login Successful! Welcome!', 13, 10, '$'
+    login_fail DB 13, 10, 'ERROR: Invalid credentials! Try again.', 13, 10, '$'
     
-    ; System Buffers
-    username db 20 dup('$')
-    password db 20 dup('$')
-    input_buffer db 2 dup('$')
+    main_menu_header DB 13, 10, '============ MAIN MENU ============', 13, 10, '$'
+    main_menu_options DB '1. View Menu & Current Order', 13, 10
+                     DB '2. Place New Order', 13, 10
+                     DB '3. View Receipt', 13, 10
+                     DB '4. Clear All Orders', 13, 10
+                     DB '5. Logout', 13, 10
+                     DB '===================================', 13, 10
+                     DB 'Enter your choice (1-5): $'
     
-    ; Cart Storage
-    cart_items db 5 dup(0)      ; Stores item numbers (1-5)
-    cart_quantities db 5 dup(0) ; Stores quantities
-    cart_count db 0             ; Number of items in cart
+    order_header DB 13, 10, '=========== PLACE ORDER ===========', 13, 10, '$'
+    item_prompt DB 'Enter item number (1-6) or 0 to finish: $'
+    qty_prompt DB 'Enter quantity (1-9): $'
+    
+    current_order_header DB 13, 10, '======== CURRENT ORDER ========', 13, 10, '$'
+    no_items_msg DB 'No items in cart.', 13, 10, '$'
+    
+    receipt_header DB 13, 10, '========== ORDER RECEIPT ==========', 13, 10, '$'
+    receipt_footer DB '===================================', 13, 10, '$'
+    
+    ; Status messages
+    item_added_msg DB ' item(s) added to cart!', 13, 10, '$'
+    invalid_choice_msg DB 'ERROR: Invalid choice! Please enter 1-5.', 13, 10, '$'
+    invalid_item_msg DB 'ERROR: Invalid item! Please enter 1-6.', 13, 10, '$'
+    invalid_qty_msg DB 'ERROR: Invalid quantity! Please enter 1-9.', 13, 10, '$'
+    max_qty_msg DB 'ERROR: Maximum quantity (9) reached for this item!', 13, 10, '$'
+    confirm_order_msg DB 'Confirm this order? (y/n): $'
+    order_confirmed_msg DB 13, 10, 'Order confirmed and calculated!', 13, 10, '$'
+    order_cancelled_msg DB 13, 10, 'Order cancelled.', 13, 10, '$'
+    cart_cleared_msg DB 13, 10, 'All orders cleared successfully!', 13, 10, '$'
+    no_order_receipt_msg DB 'No order to display! Please place an order first.', 13, 10, '$'
+    logout_msg DB 13, 10, 'Thank you for using our Food Ordering System!', 13, 10
+              DB 'Goodbye!', 13, 10, '$'
+    
+    ; Display formatting
+    newline DB 13, 10, '$'
+    spaces DB '   $'
+    dash DB ' - $'
+    qty_label DB ' x $'
+    subtotal_label DB 'Subtotal: RM$'
+    tax_label DB 'Tax (6%): RM$'
+    total_label DB 'Total Amount: RM$'
 
-.code
-main proc
-    mov ax, @data
-    mov ds, ax
-    mov es, ax       ; ES = DS for string operations
+.CODE
+MAIN PROC
+    MOV AX, @DATA
+    MOV DS, AX
     
-    call clear_screen
-    call login_module
-    cmp ax, 1          ; Check if login was successful
-    jne exit_program   ; If not, exit
-    
-    call main_menu_module
-    
-exit_program:
-    mov ax, 4C00h      ; DOS exit function
-    int 21h
-main endp
-
-; ----------------------------
-; LOGIN MODULE
-; Returns: AX=1 if success, 0 if fail
-; ----------------------------
-login_module proc
-    push bx
-    push cx
-    mov cx, 3          ; 3 attempts
-    
-attempt_loop:
     ; Display welcome message
-    mov dx, offset welcome_msg
-    call print_string
+    LEA DX, welcome_msg
+    MOV AH, 09H
+    INT 21H
     
-    ; Get username
-    mov dx, offset login_prompt
-    call print_string
-    mov dx, offset username
-    call get_string
+    ; Login process
+    CALL LOGIN_SYSTEM
     
-    ; Get password
-    mov dx, offset pass_prompt
-    call print_string
-    mov dx, offset password
-    call get_string
+    ; Main application loop
+    MAIN_LOOP:
+        CALL SHOW_MAIN_MENU
+        CALL GET_MENU_CHOICE
+        
+        CMP AL, '1'
+        JE VIEW_MENU_OPTION
+        CMP AL, '2'
+        JE PLACE_ORDER_OPTION
+        CMP AL, '3'
+        JE VIEW_RECEIPT_OPTION
+        CMP AL, '4'
+        JE CLEAR_ORDER_OPTION
+        CMP AL, '5'
+        JE LOGOUT_OPTION
+        
+        ; Invalid choice
+        LEA DX, invalid_choice_msg
+        MOV AH, 09H
+        INT 21H
+        JMP MAIN_LOOP
     
-    ; Validate credentials
-    mov si, offset valid_user
-    mov di, offset username
-    call compare_strings
-    cmp ax, 1
-    je invalid_login
+    VIEW_MENU_OPTION:
+        CALL VIEW_MENU_AND_CART
+        JMP MAIN_LOOP
     
-    mov si, offset valid_pass
-    mov di, offset password
-    call compare_strings
-    cmp ax, 1
-    je invalid_login
+    PLACE_ORDER_OPTION:
+        CALL PLACE_ORDER_SYSTEM
+        JMP MAIN_LOOP
     
-    ; Valid credentials
-    mov dx, offset login_success
-    call print_string
-    mov ax, 1
-    jmp login_done
+    VIEW_RECEIPT_OPTION:
+        CALL DISPLAY_RECEIPT
+        JMP MAIN_LOOP
     
-invalid_login:
-    dec cx
-    jz lockout
+    CLEAR_ORDER_OPTION:
+        CALL CLEAR_ALL_ORDERS
+        JMP MAIN_LOOP
     
-    mov dx, offset login_fail
-    call print_string
-    jmp attempt_loop
+    LOGOUT_OPTION:
+        LEA DX, logout_msg
+        MOV AH, 09H
+        INT 21H
+        JMP EXIT_PROGRAM
     
-lockout:
-    mov dx, offset login_lockout
-    call print_string
-    xor ax, ax
-    
-login_done:
-    pop cx
-    pop bx
-    ret
-login_module endp
+    EXIT_PROGRAM:
+        MOV AH, 4CH
+        INT 21H
+MAIN ENDP
 
-; ----------------------------
-; MAIN MENU MODULE
-; ----------------------------
-main_menu_module proc
-    push bx
-    
-menu_loop:
-    call clear_screen
-    mov dx, offset main_menu
-    call print_string
-    
-    ; Get user selection
-    call get_char
-    mov bl, al
-    
-    ; Process selection
-    cmp bl, '1'
-    je show_menu
-    cmp bl, '2'
-    je show_cart
-    cmp bl, '3'
-    je checkout
-    cmp bl, '4'
-    je menu_exit
-    
-    ; Invalid choice
-    mov dx, offset invalid_choice
-    call print_string
-    call wait_key
-    jmp menu_loop
-    
-show_menu:
-    call food_menu_module
-    jmp menu_loop
-    
-show_cart:
-    call display_cart
-    call wait_key
-    jmp menu_loop
-    
-checkout:
-    call checkout_module
-    jmp menu_loop
-    
-menu_exit:
-    pop bx
-    ret
-main_menu_module endp
+; ============= LOGIN MODULE =============
+LOGIN_SYSTEM PROC
+    LOGIN_LOOP:
+        LEA DX, login_header
+        MOV AH, 09H
+        INT 21H
+        
+        ; Get username
+        LEA DX, user_prompt
+        MOV AH, 09H
+        INT 21H
+        
+        LEA DX, input_user
+        MOV AH, 0AH
+        INT 21H
+        
+        ; Get password
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+        LEA DX, pass_prompt
+        MOV AH, 09H
+        INT 21H
+        
+        LEA DX, input_pass
+        MOV AH, 0AH
+        INT 21H
+        
+        ; Simple validation (check first character)
+        MOV AL, [input_user + 2]
+        CMP AL, 'a'
+        JNE LOGIN_FAILED
+        
+        MOV AL, [input_pass + 2]
+        CMP AL, '1'
+        JNE LOGIN_FAILED
+        
+        ; Login successful
+        LEA DX, login_success
+        MOV AH, 09H
+        INT 21H
+        RET
+        
+    LOGIN_FAILED:
+        LEA DX, login_fail
+        MOV AH, 09H
+        INT 21H
+        JMP LOGIN_LOOP
+LOGIN_SYSTEM ENDP
 
-; ----------------------------
-; FOOD MENU MODULE
-; ----------------------------
-food_menu_module proc
-    push bx
+; ============= MENU DISPLAY MODULE =============
+SHOW_MAIN_MENU PROC
+    LEA DX, main_menu_header
+    MOV AH, 09H
+    INT 21H
     
-menuloop:
-    call clear_screen
-    mov dx, offset food_menu
-    call print_string
-    
-    ; Get selection
-    call get_char
-    mov bl, al
-    
-    ; Check for return (0)
-    cmp bl, '0'
-    je menu_done
-    
-    ; Validate input (1-5)
-    cmp bl, '1'
-    jb invalid_input
-    cmp bl, '5'
-    ja invalid_input
-    
-    ; Process selection
-    sub bl, '0'  ; Convert to number
-    
-    ; Add to cart
-    call add_to_cart
-    mov dx, offset item_added
-    call print_string
-    call wait_key
-    jmp menu_loop
-    
-invalid_input:
-    ; Handle invalid input
-    jmp menu_loop
-    
-menu_done:
-    pop bx
-    ret
-food_menu_module endp
+    LEA DX, main_menu_options
+    MOV AH, 09H
+    INT 21H
+    RET
+SHOW_MAIN_MENU ENDP
 
-; ----------------------------
-; CHECKOUT MODULE
-; ----------------------------
-checkout_module proc
-    call clear_screen
-    cmp [cart_count], 0
-    jne has_items
-    
-    mov dx, offset empty_cart
-    call print_string
-    call wait_key
-    ret
-    
-has_items:
-    call display_cart
-    
-    ; Display total (simplified)
-    mov dx, offset checkout_msg
-    call print_string
-    
-    call wait_key
-    ret
-    
-checkout_msg db 0Dh, 0Ah, 'Thank you for your order! Press any key to continue...$'
-checkout_module endp
+GET_MENU_CHOICE PROC
+    MOV AH, 01H
+    INT 21H
+    RET
+GET_MENU_CHOICE ENDP
 
-; ----------------------------
-; CART FUNCTIONS
-; ----------------------------
-add_to_cart proc
-    push si
-    push di
-    push cx
+; ============= VIEW MENU AND CART MODULE =============
+VIEW_MENU_AND_CART PROC
+    ; Display menu
+    LEA DX, menu_header
+    MOV AH, 09H
+    INT 21H
     
-    ; Check if item already in cart
-    mov si, offset cart_items
-    mov di, offset cart_quantities
-    mov cx, 0
-    mov cl, [cart_count]
-    jcxz add_new_item
-    
-search_loop:
-    cmp [si], bl
-    je increment_quantity
-    inc si
-    inc di
-    loop search_loop
-    
-add_new_item:
-    ; Add new item to cart
-    mov si, offset cart_items
-    mov al, [cart_count] ; Load 8-bit value into AL
-    cbw                  ; Sign-extend AL to AX (AX = AL, AH = 0)
-    add si, ax           ; Add 16-bit AX to SI
-    mov [si], bl
-    
-    ; Set default quantity to 1
-    mov di, offset cart_quantities
-    mov al, [cart_count] ; Load 8-bit value into AL
-    cbw                  ; Sign-extend AL to AX (AX = AL, AH = 0)
-    add di, ax           ; Add 16-bit AX to DI
-    mov byte ptr [di], 1
-    
-    ; Increment cart count
-    inc [cart_count]
-    jmp add_done
-    
-increment_quantity:
-    ; Increment existing item quantity
-    inc byte ptr [di]
-    
-add_done:
-    pop cx
-    pop di
-    pop si
-    ret
-add_to_cart endp
+    ; Display current cart
+    CALL DISPLAY_CURRENT_CART
+    RET
+VIEW_MENU_AND_CART ENDP
 
-display_cart proc
-    push si
-    push di
-    push cx
-    push dx
+DISPLAY_CURRENT_CART PROC
+    LEA DX, current_order_header
+    MOV AH, 09H
+    INT 21H
     
-    call clear_screen
-    mov dx, offset cart_header
-    call print_string
+    MOV BX, 0
+    MOV CX, 6
+    MOV DL, 0  ; Flag for items found
     
-    ; Check if cart is empty
-    cmp [cart_count], 0
-    jne show_items
+    CART_LOOP:
+        CMP quantities[BX], 0
+        JE SKIP_CART_ITEM
+        
+        MOV DL, 1  ; Set flag
+        
+        ; Display item number
+        MOV AL, BL
+        ADD AL, '1'
+        MOV AH, 02H
+        MOV DH, AL
+        MOV DL, DH
+        INT 21H
+        
+        LEA DX, dash
+        MOV AH, 09H
+        INT 21H
+        
+        ; Display item name
+        CALL DISPLAY_ITEM_NAME
+        
+        LEA DX, qty_label
+        MOV AH, 09H
+        INT 21H
+        
+        ; Display quantity
+        MOV AL, quantities[BX]
+        ADD AL, '0'
+        MOV DL, AL
+        MOV AH, 02H
+        INT 21H
+        
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+    SKIP_CART_ITEM:
+        INC BX
+        LOOP CART_LOOP
     
-    mov dx, offset empty_cart
-    call print_string
-    jmp display_done
+    CMP DL, 0
+    JNE CART_END
     
-show_items:
-    ; Display cart items
-    mov si, offset cart_items
-    mov di, offset cart_quantities
-    mov cx, 0
-    mov cl, [cart_count]
+    LEA DX, no_items_msg
+    MOV AH, 09H
+    INT 21H
     
-display_loop:
-    ; Display item number
-    mov dl, [si]
-    add dl, '0'
-    call print_char
-    
-    ; Display " - Quantity: "
-    mov dx, offset item_quantity_msg
-    call print_string
-    
-    ; Display quantity
-    mov dl, [di]
-    add dl, '0'
-    call print_char
-    
-    ; New line
-    mov dl, 0Dh
-    call print_char
-    mov dl, 0Ah
-    call print_char
-    
-    inc si
-    inc di
-    loop display_loop
-    
-display_done:
-    pop dx
-    pop cx
-    pop di
-    pop si
-    ret
-display_cart endp
+    CART_END:
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        RET
+DISPLAY_CURRENT_CART ENDP
 
-; ----------------------------
-; HELPER FUNCTIONS
-; ----------------------------
-clear_screen proc
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    mov ax, 0600h   ; Scroll entire window
-    mov bh, 07h     ; Normal attribute
-    xor cx, cx      ; Upper left corner (0,0)
-    mov dx, 184Fh   ; Lower right corner (24,79)
-    int 10h
-    
-    ; Move cursor to top-left
-    mov ah, 02h
-    xor bh, bh
-    xor dx, dx
-    int 10h
-    
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-clear_screen endp
+DISPLAY_ITEM_NAME PROC
+    PUSH BX
+    MOV AL, 9  ; Length of each item name
+    MUL BL
+    MOV SI, AX
+    LEA DX, item_names[SI]
+    MOV AH, 09H
+    INT 21H
+    POP BX
+    RET
+DISPLAY_ITEM_NAME ENDP
 
-print_string proc
-    push ax
-    mov ah, 09h
-    int 21h
-    pop ax
-    ret
-print_string endp
+; ============= ORDER PLACING MODULE =============
+PLACE_ORDER_SYSTEM PROC
+    LEA DX, order_header
+    MOV AH, 09H
+    INT 21H
+    
+    ORDER_INPUT_LOOP:
+        LEA DX, item_prompt
+        MOV AH, 09H
+        INT 21H
+        
+        ; Get item choice
+        MOV AH, 01H
+        INT 21H
+        MOV BL, AL
+        
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+        CMP BL, '0'
+        JE FINISH_ORDERING
+        
+        CMP BL, '1'
+        JL INVALID_ITEM_INPUT
+        CMP BL, '6'
+        JG INVALID_ITEM_INPUT
+        
+        ; Valid item, get quantity
+        LEA DX, qty_prompt
+        MOV AH, 09H
+        INT 21H
+        
+        MOV AH, 01H
+        INT 21H
+        MOV CL, AL
+        
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+        CMP CL, '1'
+        JL INVALID_QTY_INPUT
+        CMP CL, '9'
+        JG INVALID_QTY_INPUT
+        
+        ; Add to cart
+        SUB BL, '1'  ; Convert to index
+        MOV BH, 0
+        SUB CL, '0'  ; Convert to number
+        
+        ; Check maximum quantity
+        MOV AL, quantities[BX]
+        ADD AL, CL
+        CMP AL, 9
+        JG MAX_QTY_EXCEEDED
+        
+        ; Add to existing quantity
+        MOV quantities[BX], AL
+        
+        ; Confirmation message
+        MOV DL, CL
+        ADD DL, '0'
+        MOV AH, 02H
+        INT 21H
+        
+        LEA DX, item_added_msg
+        MOV AH, 09H
+        INT 21H
+        
+        JMP ORDER_INPUT_LOOP
+        
+    INVALID_ITEM_INPUT:
+        LEA DX, invalid_item_msg
+        MOV AH, 09H
+        INT 21H
+        JMP ORDER_INPUT_LOOP
+        
+    INVALID_QTY_INPUT:
+        LEA DX, invalid_qty_msg
+        MOV AH, 09H
+        INT 21H
+        JMP ORDER_INPUT_LOOP
+        
+    MAX_QTY_EXCEEDED:
+        LEA DX, max_qty_msg
+        MOV AH, 09H
+        INT 21H
+        JMP ORDER_INPUT_LOOP
+        
+    FINISH_ORDERING:
+        ; Check if any items in cart
+        CALL CHECK_CART_EMPTY
+        CMP AL, 1
+        JE NO_ITEMS_TO_CONFIRM
+        
+        ; Confirm order
+        LEA DX, confirm_order_msg
+        MOV AH, 09H
+        INT 21H
+        
+        MOV AH, 01H
+        INT 21H
+        MOV BL, AL
+        
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+        CMP BL, 'y'
+        JE CONFIRM_ORDER
+        CMP BL, 'Y'
+        JE CONFIRM_ORDER
+        
+        ; Cancel order - clear cart
+        CALL CLEAR_ALL_ORDERS
+        LEA DX, order_cancelled_msg
+        MOV AH, 09H
+        INT 21H
+        RET
+        
+    CONFIRM_ORDER:
+        CALL CALCULATE_ORDER_TOTALS
+        LEA DX, order_confirmed_msg
+        MOV AH, 09H
+        INT 21H
+        RET
+        
+    NO_ITEMS_TO_CONFIRM:
+        LEA DX, no_items_msg
+        MOV AH, 09H
+        INT 21H
+        RET
+PLACE_ORDER_SYSTEM ENDP
 
-get_string proc
-    push ax
-    push bx
-    push cx
-    push dx
-    push si
+CHECK_CART_EMPTY PROC
+    MOV BX, 0
+    MOV CX, 6
     
-    mov si, dx      ; Buffer address
+    CHECK_LOOP:
+        CMP quantities[BX], 0
+        JNE CART_NOT_EMPTY
+        INC BX
+        LOOP CHECK_LOOP
     
-input_loop:
-    mov ah, 01h      ; Read character with echo
-    int 21h
+    MOV AL, 1  ; Empty
+    RET
     
-    cmp al, 0Dh      ; Check for Enter key
-    je input_done
-    
-    mov [si], al     ; Store character
-    inc si
-    jmp input_loop
-    
-input_done:
-    mov byte ptr [si], '$'  ; DOS string terminator
-    pop si
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-get_string endp
+    CART_NOT_EMPTY:
+        MOV AL, 0  ; Not empty
+        RET
+CHECK_CART_EMPTY ENDP
 
-get_char proc
-    mov ah, 01h
-    int 21h
-    ret
-get_char endp
-
-wait_key proc
-    mov ah, 08h      ; Read character without echo
-    int 21h
-    ret
-wait_key endp
-
-print_char proc
-    push ax
-    mov ah, 02h
-    int 21h
-    pop ax
-    ret
-print_char endp
-
-compare_strings proc
-    push bx
-    push cx
+; ============= CALCULATION MODULE =============
+CALCULATE_ORDER_TOTALS PROC
+    MOV order_subtotal, 0
+    MOV BX, 0
+    MOV CX, 6
     
-compare_loop:
-    mov bl, [si]
-    mov cl, [di]
-    cmp bl, cl
-    jne not_equal
-    cmp bl, '$'
-    je strings_equal
-    inc si
-    inc di
-    jmp compare_loop
+    CALC_LOOP:
+        CMP quantities[BX], 0
+        JE SKIP_CALC
+        
+        ; Calculate item total
+        MOV AL, quantities[BX]
+        MOV AH, 0
+        MOV SI, BX
+        SHL SI, 1  ; Word array index
+        MUL prices[SI]
+        
+        ADD order_subtotal, AX
+        
+    SKIP_CALC:
+        INC BX
+        LOOP CALC_LOOP
     
-strings_equal:
-    xor ax, ax
-    jmp compare_done
+    ; Calculate tax (6%)
+    MOV AX, order_subtotal
+    MOV BX, 6
+    MUL BX
+    MOV BX, 100
+    DIV BX
+    MOV tax_amount, AX
     
-not_equal:
-    mov ax, 1
+    ; Calculate final total
+    MOV AX, order_subtotal
+    ADD AX, tax_amount
+    MOV final_total, AX
     
-compare_done:
-    pop cx
-    pop bx
-    ret
-compare_strings endp
+    RET
+CALCULATE_ORDER_TOTALS ENDP
 
-end main
+; ============= RECEIPT MODULE =============
+DISPLAY_RECEIPT PROC
+    ; Check if order exists
+    CMP order_subtotal, 0
+    JE NO_ORDER_EXISTS
+    
+    LEA DX, receipt_header
+    MOV AH, 09H
+    INT 21H
+    
+    ; Display ordered items
+    MOV BX, 0
+    MOV CX, 6
+    
+    RECEIPT_LOOP:
+        CMP quantities[BX], 0
+        JE SKIP_RECEIPT_ITEM
+        
+        ; Item quantity
+        MOV AL, quantities[BX]
+        ADD AL, '0'
+        MOV DL, AL
+        MOV AH, 02H
+        INT 21H
+        
+        LEA DX, qty_label
+        MOV AH, 09H
+        INT 21H
+        
+        ; Item name
+        CALL DISPLAY_ITEM_NAME
+        
+        LEA DX, newline
+        MOV AH, 09H
+        INT 21H
+        
+    SKIP_RECEIPT_ITEM:
+        INC BX
+        LOOP RECEIPT_LOOP
+    
+    ; Display totals
+    LEA DX, newline
+    MOV AH, 09H
+    INT 21H
+    
+    LEA DX, subtotal_label
+    MOV AH, 09H
+    INT 21H
+    
+    MOV AX, order_subtotal
+    CALL DISPLAY_CURRENCY
+    
+    LEA DX, newline
+    MOV AH, 09H
+    INT 21H
+    
+    LEA DX, tax_label
+    MOV AH, 09H
+    INT 21H
+    
+    MOV AX, tax_amount
+    CALL DISPLAY_CURRENCY
+    
+    LEA DX, newline
+    MOV AH, 09H
+    INT 21H
+    
+    LEA DX, total_label
+    MOV AH, 09H
+    INT 21H
+    
+    MOV AX, final_total
+    CALL DISPLAY_CURRENCY
+    
+    LEA DX, newline
+    MOV AH, 09H
+    INT 21H
+    
+    LEA DX, receipt_footer
+    MOV AH, 09H
+    INT 21H
+    
+    RET
+    
+    NO_ORDER_EXISTS:
+        LEA DX, no_order_receipt_msg
+        MOV AH, 09H
+        INT 21H
+        RET
+DISPLAY_RECEIPT ENDP
+
+DISPLAY_CURRENCY PROC
+    ; Simple currency display (divide by 100)
+    MOV BX, 100
+    DIV BX  ; AX = dollars, DX = cents
+    
+    ; Display dollars
+    ADD AL, '0'
+    MOV DL, AL
+    MOV AH, 02H
+    INT 21H
+    
+    ; Display decimal point
+    MOV DL, '.'
+    MOV AH, 02H
+    INT 21H
+    
+    ; Display cents (simplified)
+    MOV AX, DX
+    MOV BL, 10
+    DIV BL
+    
+    ; Tens digit
+    ADD AL, '0'
+    MOV DL, AL
+    MOV AH, 02H
+    INT 21H
+    
+    ; Units digit
+    ADD AH, '0'
+    MOV DL, AH
+    MOV AH, 02H
+    INT 21H
+    
+    RET
+DISPLAY_CURRENCY ENDP
+
+; ============= CLEAR ORDER MODULE =============
+CLEAR_ALL_ORDERS PROC
+    MOV BX, 0
+    MOV CX, 6
+    
+    CLEAR_LOOP:
+        MOV quantities[BX], 0
+        INC BX
+        LOOP CLEAR_LOOP
+    
+    MOV order_subtotal, 0
+    MOV tax_amount, 0
+    MOV final_total, 0
+    
+    LEA DX, cart_cleared_msg
+    MOV AH, 09H
+    INT 21H
+    
+    RET
+CLEAR_ALL_ORDERS ENDP
+
+END MAIN
